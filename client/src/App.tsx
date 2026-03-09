@@ -9,6 +9,7 @@ import Dashboard from "@/pages/Dashboard";
 import NewPrediction from "@/pages/NewPrediction";
 import ProjectDetails from "@/pages/ProjectDetails";
 import Reports from "@/pages/Reports";
+import Chatbot from "@/components/Chatbot";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function App() {
       <TooltipProvider>
         <Router />
         <Toaster />
+        <Chatbot />
       </TooltipProvider>
     </QueryClientProvider>
   );

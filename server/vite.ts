@@ -4,7 +4,10 @@ import { type Server } from "http";
 import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { nanoid } from "nanoid";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const viteLogger = createLogger();
 
@@ -34,9 +37,14 @@ export async function setupVite(server: Server, app: Express) {
   app.use("/{*path}", async (req, res, next) => {
     const url = req.originalUrl;
 
+    // Skip API routes - let them be handled by the API routes
+    if (url.startsWith("/api")) {
+      return next();
+    }
+
     try {
       const clientTemplate = path.resolve(
-        import.meta.dirname,
+        __dirname,
         "..",
         "client",
         "index.html",

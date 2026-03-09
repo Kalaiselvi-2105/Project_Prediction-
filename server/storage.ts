@@ -1,22 +1,12 @@
 import { db } from "./db";
 import { projects, type InsertProject, type Project } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
-// Import chat storage to re-export it or merge if needed, but we can just use it separately in routes
-import { chatStorage } from "./replit_integrations/chat/storage";
 
 export interface IStorage {
   // Project methods
   getProjects(): Promise<Project[]>;
   getProject(id: number): Promise<Project | undefined>;
-  createProject(project: InsertProject): Promise<Project>;
-  
-  // Chat methods (re-using integration)
-  getAllConversations: typeof chatStorage.getAllConversations;
-  getConversation: typeof chatStorage.getConversation;
-  createConversation: typeof chatStorage.createConversation;
-  deleteConversation: typeof chatStorage.deleteConversation;
-  getMessagesByConversation: typeof chatStorage.getMessagesByConversation;
-  createMessage: typeof chatStorage.createMessage;
+  createProject(project: Omit<Project, 'id' | 'createdAt'>): Promise<Project>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -30,18 +20,10 @@ export class DatabaseStorage implements IStorage {
     return project;
   }
 
-  async createProject(insertProject: InsertProject): Promise<Project> {
+  async createProject(insertProject: Omit<Project, 'id' | 'createdAt'>): Promise<Project> {
     const [project] = await db.insert(projects).values(insertProject).returning();
     return project;
   }
-
-  // Chat implementation delegation
-  getAllConversations = chatStorage.getAllConversations;
-  getConversation = chatStorage.getConversation;
-  createConversation = chatStorage.createConversation;
-  deleteConversation = chatStorage.deleteConversation;
-  getMessagesByConversation = chatStorage.getMessagesByConversation;
-  createMessage = chatStorage.createMessage;
 }
 
 export const storage = new DatabaseStorage();

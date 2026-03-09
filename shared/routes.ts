@@ -51,20 +51,28 @@ export const api = {
       }),
       responses: {
         200: z.object({
-          requirementClarity: z.number(),
-          teamExperience: z.number(),
-          resourceAvailability: z.number(),
-          complexity: z.number(),
-          communicationScore: z.number(),
-          delayDays: z.number(),
-          scopeChanges: z.number(),
-          summary: z.string(),
+          extractedValues: z.object({
+            requirementClarity: z.number(),
+            teamExperience: z.number(),
+            resourceAvailability: z.number(),
+            complexity: z.number(),
+            communicationScore: z.number(),
+            delayDays: z.number(),
+            scopeChanges: z.number(),
+            summary: z.string(),
+          }),
+          prediction: z.object({
+            successProbability: z.number(),
+            failureProbability: z.number(),
+            riskLevel: z.string(),
+            recommendations: z.array(z.string()),
+          }),
         }),
         400: errorSchemas.validation,
       },
     },
     generatePdf: {
-      method: 'POST' as const,
+      method: 'GET' as const,
       path: '/api/projects/:id/pdf' as const,
       responses: {
         200: z.any(), // Returns binary PDF stream

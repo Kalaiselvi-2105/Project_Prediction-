@@ -4,13 +4,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useCreateProject, useAnalyzeFile } from "@/hooks/use-projects";
 import { useLocation } from "wouter";
-import { Upload, FileText, Loader2, Sparkles, AlertCircle } from "lucide-react";
+import { Upload, FileText, Loader2, Sparkles, AlertCircle, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import ProjectTimeline from "@/components/ProjectTimeline";
+import TaskPlan from "@/components/TaskPlan";
 
 // Schema for the form
 const formSchema = z.object({
@@ -36,6 +39,12 @@ export default function NewPrediction() {
   const createProject = useCreateProject();
   const analyzeFile = useAnalyzeFile();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [predictionResult, setPredictionResult] = useState<{
+    successProbability: number;
+    failureProbability: number;
+    riskLevel: string;
+    recommendations: string[];
+  } | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -67,6 +76,9 @@ export default function NewPrediction() {
     }
 
     setIsAnalyzing(true);
+    // Reset prediction when starting new analysis
+    setPredictionResult(null);
+    
     const reader = new FileReader();
     reader.onload = async (event) => {
       const base64 = (event.target?.result as string).split(',')[1];
@@ -77,25 +89,37 @@ export default function NewPrediction() {
           fileName: file.name
         });
 
-        // Pre-fill form with AI analysis
-        form.setValue("requirementClarity", analysis.requirementClarity);
-        form.setValue("teamExperience", analysis.teamExperience);
-        form.setValue("resourceAvailability", analysis.resourceAvailability);
-        form.setValue("complexity", analysis.complexity);
-        form.setValue("communicationScore", analysis.communicationScore);
-        form.setValue("delayDays", analysis.delayDays);
-        form.setValue("scopeChanges", analysis.scopeChanges);
-        form.setValue("description", analysis.summary);
+        // Pre-fill form with extracted values
+        form.setValue("requirementClarity", analysis.extractedValues.requirementClarity);
+        form.setValue("teamExperience", analysis.extractedValues.teamExperience);
+        form.setValue("resourceAvailability", analysis.extractedValues.resourceAvailability);
+        form.setValue("complexity", analysis.extractedValues.complexity);
+        form.setValue("communicationScore", analysis.extractedValues.communicationScore);
+        form.setValue("delayDays", analysis.extractedValues.delayDays);
+        form.setValue("scopeChanges", analysis.extractedValues.scopeChanges);
+        form.setValue("description", analysis.extractedValues.summary);
         form.setValue("fileData", base64); // Store for submission
+
+        // Store prediction result
+        setPredictionResult(analysis.prediction);
 
         toast({
           title: "AI Analysis Complete",
-          description: "Form fields have been populated based on your file.",
+          description: `Extracted values from file and generated prediction: ${analysis.prediction.riskLevel} Risk`,
         });
-      } catch (error) {
+      } catch (error: any) {
+        // Handle error response with details
+        const errorMessage = error?.message || "Could not analyze the file. Please check the file format.";
+        
+        // Check if it's a validation error with hints
+        let description = errorMessage;
+        if (errorMessage.includes("Missing required columns") || errorMessage.includes("must be between")) {
+          description = `${errorMessage}. Please ensure your CSV/Excel has the correct column names and values.`;
+        }
+        
         toast({
           title: "Analysis Failed",
-          description: "Could not analyze the file. Please fill details manually.",
+          description: description,
           variant: "destructive",
         });
       } finally {
@@ -107,7 +131,19 @@ export default function NewPrediction() {
 
   const onSubmit = async (data: FormValues) => {
     try {
-      const result = await createProject.mutateAsync(data);
+      // If we have a prediction from Auto-Fill, include it in the submission
+      // This avoids calling the prediction API twice
+      const projectData = {
+        ...data,
+        precomputedPrediction: predictionResult ? {
+          successProbability: predictionResult.successProbability,
+          failureProbability: predictionResult.failureProbability,
+          riskLevel: predictionResult.riskLevel,
+          recommendations: predictionResult.recommendations,
+        } : undefined,
+      };
+      
+      const result = await createProject.mutateAsync(projectData);
       setLocation(`/projects/${result.id}`);
     } catch (error) {
       // Handled by mutation hook
@@ -275,6 +311,75 @@ export default function NewPrediction() {
             )}
           </div>
 
+          {/* Prediction Result Card */}
+          {predictionResult && (
+            <div className="bg-card p-6 rounded-2xl border border-border shadow-sm mt-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="w-5 h-5 text-accent" />
+                <h3 className="font-bold text-lg">AI Prediction</h3>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Risk Level Badge */}
+                <div className="flex items-center justify-center">
+                  <span className={`
+                    inline-flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm
+                    ${predictionResult.riskLevel === 'Low' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 
+                      predictionResult.riskLevel === 'Medium' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 
+                      'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}
+                  `}>
+                    {predictionResult.riskLevel === 'Low' && <CheckCircle className="w-4 h-4" />}
+                    {predictionResult.riskLevel === 'Medium' && <AlertTriangle className="w-4 h-4" />}
+                    {predictionResult.riskLevel === 'High' && <XCircle className="w-4 h-4" />}
+                    {predictionResult.riskLevel} Risk
+                  </span>
+                </div>
+
+                {/* Probability Bars */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Success</span>
+                    <span className="font-semibold text-green-600">{predictionResult.successProbability.toFixed(1)}%</span>
+                  </div>
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-green-500 rounded-full transition-all duration-500"
+                      style={{ width: `${predictionResult.successProbability}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Failure</span>
+                    <span className="font-semibold text-red-600">{predictionResult.failureProbability.toFixed(1)}%</span>
+                  </div>
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-red-500 rounded-full transition-all duration-500"
+                      style={{ width: `${predictionResult.failureProbability}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Recommendations */}
+                {predictionResult.recommendations && predictionResult.recommendations.length > 0 && (
+                  <div className="pt-2">
+                    <h4 className="font-semibold text-sm mb-2">Recommendations</h4>
+                    <ul className="space-y-1">
+                      {predictionResult.recommendations.slice(0, 3).map((rec, idx) => (
+                        <li key={idx} className="text-xs text-muted-foreground flex items-start gap-2">
+                          <span className="text-accent mt-0.5">•</span>
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-muted-foreground mt-0.5" />
@@ -286,6 +391,36 @@ export default function NewPrediction() {
               </div>
             </div>
           </div>
+
+          {/* AI Project Timeline */}
+          <ProjectTimeline 
+            projectData={{
+              name: form.watch("name"),
+              description: form.watch("description"),
+              requirementClarity: form.watch("requirementClarity"),
+              teamExperience: form.watch("teamExperience"),
+              resourceAvailability: form.watch("resourceAvailability"),
+              complexity: form.watch("complexity"),
+              communicationScore: form.watch("communicationScore"),
+              delayDays: form.watch("delayDays"),
+              scopeChanges: form.watch("scopeChanges"),
+            }} 
+          />
+
+          {/* AI Task Plan */}
+          <TaskPlan 
+            projectData={{
+              name: form.watch("name"),
+              description: form.watch("description"),
+              requirementClarity: form.watch("requirementClarity"),
+              teamExperience: form.watch("teamExperience"),
+              resourceAvailability: form.watch("resourceAvailability"),
+              complexity: form.watch("complexity"),
+              communicationScore: form.watch("communicationScore"),
+              delayDays: form.watch("delayDays"),
+              scopeChanges: form.watch("scopeChanges"),
+            }} 
+          />
         </div>
       </div>
     </div>
