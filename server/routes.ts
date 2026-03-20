@@ -44,7 +44,7 @@ export async function registerRoutes(
           recommendations: precomputedPrediction.recommendations || [],
         };
       } else {
-        // AI Analysis for Prediction (when manually filling form)
+// Original AI Analysis (OpenRouter/Gemini)
         const analysisPrompt = `
           Analyze the following project parameters to predict success/failure probability and risk level.
           
@@ -266,7 +266,7 @@ export async function registerRoutes(
         });
       }
 
-      // Now run AI prediction based on extracted values
+// Original AI prediction based on extracted values
       const analysisPrompt = `
         Analyze the following project parameters to predict success/failure probability and risk level.
         

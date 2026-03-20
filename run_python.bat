@@ -1,0 +1,9 @@
+@echo off
+echo Starting AI Prediction Python Backend...
+cd ml_model
+echo Installing dependencies...
+pip install -r requirements.txt
+echo Starting Flask server on http://localhost:5000...
+echo Press Ctrl+C to stop.
+python app.py
+pause
